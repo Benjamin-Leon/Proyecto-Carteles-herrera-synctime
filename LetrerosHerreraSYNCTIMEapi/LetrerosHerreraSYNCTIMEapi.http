@@ -1,0 +1,33 @@
+@LetrerosHerreraSYNCTIMEapi_HostAddress = http://localhost:5194
+@token = REEMPLAZAR_CON_EL_TOKEN_DEL_LOGIN
+@email = admin@losherrera.com
+@password = REEMPLAZAR_CON_LA_PASSWORD_DE_DESARROLLO
+
+### Login de demostracion
+POST {{LetrerosHerreraSYNCTIMEapi_HostAddress}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+	"email": "{{email}}",
+	"password": "{{password}}"
+}
+
+### OpenAPI
+GET {{LetrerosHerreraSYNCTIMEapi_HostAddress}}/openapi/v1.json
+Accept: application/json
+
+###
+### Catalogo publico
+GET {{LetrerosHerreraSYNCTIMEapi_HostAddress}}/api/v1/productos/
+Accept: application/json
+
+###
+### Endpoint protegido sin token: debe responder 401
+GET {{LetrerosHerreraSYNCTIMEapi_HostAddress}}/api/v1/clientes/
+Accept: application/json
+
+###
+### Perfil autenticado: sustituir @token tras ejecutar el login
+GET {{LetrerosHerreraSYNCTIMEapi_HostAddress}}/api/v1/auth/me
+Authorization: Bearer {{token}}
+Accept: application/json

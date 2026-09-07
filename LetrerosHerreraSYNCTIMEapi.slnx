@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="LetrerosHerreraSYNCTIMEapi/LetrerosHerreraSYNCTIMEapi.csproj" />
+  <Project Path="LetrerosHerreraSYNCTIMEapi.Tests/LetrerosHerreraSYNCTIMEapi.Tests.csproj" />
+</Solution>
