@@ -19,3 +19,4 @@ secrets.json
 *.log
 *.tmp
 TestResults/
+**/.test-obj/
