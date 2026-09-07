@@ -86,6 +86,23 @@ Cliente HTTP / Scalar / Postman
 7. EF Core o el Repository consulta o modifica la base.
 8. Se devuelve una respuesta JSON con un codigo HTTP apropiado.
 
+### Decisiones de diseño y justificacion
+
+| Decision | Justificacion |
+| --- | --- |
+| Minimal API en lugar de controladores MVC | El proyecto tiene endpoints agrupados por dominio y un alcance acotado. Minimal API reduce codigo ceremonial y mantiene visible el recorrido de cada request. |
+| Endpoints separados por area del negocio | `AuthApi`, `CatalogoApi`, `SolicitudApi`, `CotizacionApi` y `PedidoApi` evitan concentrar toda la logica en `Program.cs` y facilitan mantener cada flujo. |
+| Entity Framework Core como ORM | Permite consultar SQL Server desde C# mediante LINQ, mapear relaciones y centralizar la configuracion en el `DbContext`, reduciendo SQL repetido en los endpoints. |
+| Enfoque Database-First | La base `LetrerosHerreradb` ya existia y contenia datos. Por eso se generaron las entidades desde el esquema real en vez de inventar un modelo desconectado del negocio. |
+| Repository para solicitudes | `ISolicitudRepository` aisla el acceso a solicitudes y demuestra la separacion entre la capa HTTP y persistencia, sin agregar una capa artificial a cada CRUD simple. |
+| DTOs/records para requests | Evitan enlazar directamente entidades completas desde el JSON recibido y permiten validar solo los campos que cada operacion debe aceptar. |
+| JWT con roles | La API tiene perfiles con responsabilidades diferentes. Un token firmado permite identificar al usuario y `RequireAuthorization` limita operaciones sensibles por rol. |
+| User Secrets y variables de entorno | La conexion SQL y la clave JWT son configuracion del entorno, no codigo fuente. Separarlas evita publicar credenciales en GitHub y permite cambiar valores entre desarrollo y produccion. |
+| OpenAPI y Scalar | La API necesita ser navegable y demostrable durante la exposicion. OpenAPI describe el contrato y Scalar permite probarlo, incluyendo Bearer JWT. |
+| Pruebas con `WebApplicationFactory` | Verifican el contrato HTTP atravesando la aplicacion real, en lugar de probar solo metodos aislados. |
+
+Estas decisiones siguen las capacidades documentadas por Microsoft para [Minimal APIs](https://learn.microsoft.com/aspnet/core/fundamentals/minimal-apis), [Entity Framework Core](https://learn.microsoft.com/ef/core/), [autenticacion JWT Bearer](https://learn.microsoft.com/aspnet/core/security/authentication/jwt) y [User Secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets).
+
 ---
 
 ## 5. Estructura de carpetas
@@ -208,17 +225,19 @@ Roles utilizados:
 
 ## 9. Seguridad y OWASP
 
-Las medidas implementadas y documentadas en `OWASP.md` son:
+El proyecto documenta y aplica siete categorias del [OWASP API Security Top 10](https://owasp.org/API-Security/editions/2023/en/0x11-t10/). La siguiente tabla explica el problema, la mitigacion y la evidencia concreta dentro del proyecto.
 
-1. **API1 - Broken Object Level Authorization:** se exige autenticacion y se validan identificadores relacionados.
-2. **API2 - Broken Authentication:** BCrypt, JWT, expiracion y respuestas genericas `401`.
-3. **API3 - Broken Object Property Level Authorization:** se usan records de entrada y se validan campos permitidos.
-4. **API4 - Unrestricted Resource Consumption:** rate limiting para login y API general.
-5. **API5 - Broken Function Level Authorization:** permisos diferentes por endpoint y rol.
-6. **API8 - Security Misconfiguration:** secretos fuera del repositorio y CORS restringido.
-7. **API9 - Improper Inventory Management:** versionamiento `/api/v1`, OpenAPI y archivo `.http`.
+| Riesgo OWASP | Problema que se evita | Como se aborda | Evidencia |
+| --- | --- | --- | --- |
+| **API1 - Broken Object Level Authorization** | Un usuario podria consultar o modificar recursos relacionados sin validar que las referencias existan o correspondan al flujo. | Se exige autenticacion en rutas protegidas, se restringen operaciones por rol y se validan identificadores de cliente, producto, empleado y cotizacion antes de guardar. | `Endpoints/CatalogoApi.cs`, `SolicitudApi.cs`, `CotizacionApi.cs` y `PedidoApi.cs`. |
+| **API2 - Broken Authentication** | Un login debil podria exponer contrasenas o revelar si existe un usuario. | Las contrasenas se almacenan con BCrypt; login invalido responde `401` generico; JWT valida firma, issuer, audience y expiracion. | `Services/AuthService.cs`, `Endpoints/AuthApi.cs` y `Program.cs`. |
+| **API3 - Broken Object Property Level Authorization** | El cliente podria enviar propiedades que no deberia controlar, como roles, estados o precios calculados. | Se reciben records/DTOs de entrada, se validan listas permitidas y rangos, y los totales de cotizacion se calculan en el servidor. | Records de `AuthApi.cs`, `CotizacionApi.cs` y `PedidoApi.cs`. |
+| **API4 - Unrestricted Resource Consumption** | Un atacante podria abusar del login o saturar la API con muchas solicitudes. | Rate limiting fijo de 10 intentos por minuto para login y 100 solicitudes por minuto para la API general; el exceso responde `429`. | Configuracion `AddRateLimiter` en `Program.cs`. |
+| **API5 - Broken Function Level Authorization** | Un usuario autenticado podria ejecutar funciones reservadas a otro perfil. | `RequireAuthorization` y `Authorize(Roles = ...)` protegen creacion de usuarios, escrituras y eliminaciones segun el rol. | `Endpoints/AuthApi.cs`, `CatalogoApi.cs`, `SolicitudApi.cs`, `CotizacionApi.cs` y `PedidoApi.cs`. |
+| **API8 - Security Misconfiguration** | Claves, cadenas de conexion, CORS abierto o errores detallados podrian exponer el sistema. | Secretos fuera de `appsettings`, CORS limitado a un origen, `ProblemDetails`, manejo centralizado de excepciones y HTTPS. | `Program.cs`, `.gitignore` y User Secrets. |
+| **API9 - Improper Inventory Management** | Rutas sin versionar o sin documentar pueden quedar olvidadas y ser dificiles de controlar. | Todas las rutas usan `/api/v1`, OpenAPI se expone en Development y el archivo `.http` permite repetir requests conocidos. | `Endpoints/*.cs`, `OpenApi/BearerSecuritySchemeTransformer.cs` y `.http`. |
 
-Tambien se utiliza redireccion HTTPS y validacion de relaciones antes de guardar para evitar errores poco claros de base de datos.
+La clasificacion y los nombres de los riesgos se basan en la [lista oficial OWASP API Security Top 10 2023](https://owasp.org/API-Security/editions/2023/en/0x11-t10/). La configuracion de JWT sigue la documentacion de [Microsoft Authentication and Authorization](https://learn.microsoft.com/aspnet/core/security/authentication/). Las medidas no significan que la API sea invulnerable: son controles concretos implementados para reducir los riesgos identificados.
 
 ---
 
@@ -293,3 +312,12 @@ Estas limitaciones se dejan explicitas para que el informe represente el estado 
 El proyecto aplica el patron de `GamesApi` a un caso de negocio distinto y agrega los elementos exigidos por el Trabajo 1: Minimal API, ORM, CRUD, validacion, versionamiento, OpenAPI, JWT, roles, middleware, Repository, seguridad OWASP y pruebas automatizadas.
 
 La aplicacion queda organizada para que cada integrante pueda explicar que hace cada carpeta y como una peticion avanza desde HTTP hasta SQL Server.
+
+## 15. Referencias
+
+- OWASP Foundation. [OWASP API Security Top 10 - 2023](https://owasp.org/API-Security/editions/2023/en/0x11-t10/).
+- Microsoft Learn. [Minimal APIs en ASP.NET Core](https://learn.microsoft.com/aspnet/core/fundamentals/minimal-apis).
+- Microsoft Learn. [Entity Framework Core](https://learn.microsoft.com/ef/core/).
+- Microsoft Learn. [JWT Bearer authentication en ASP.NET Core](https://learn.microsoft.com/aspnet/core/security/authentication/jwt).
+- Microsoft Learn. [Safe storage of app secrets in development](https://learn.microsoft.com/aspnet/core/security/app-secrets).
+- Microsoft Learn. [Integration tests in ASP.NET Core](https://learn.microsoft.com/aspnet/core/test/integration-tests).
