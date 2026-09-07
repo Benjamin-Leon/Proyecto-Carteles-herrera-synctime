@@ -6,7 +6,6 @@ API REST para gestionar el flujo comercial de una empresa de letreros.
 
 - `InformeTecnicoEntrega.md`: informe formal para la entrega.
 - `GuiaEstudioSimple.md`: explicacion simple para estudiar el proyecto.
-- `InformeTecnico.md`: notas tecnicas ampliadas del proceso.
 - `OWASP.md`: mitigaciones de seguridad documentadas.
 
 ## Proyecto
